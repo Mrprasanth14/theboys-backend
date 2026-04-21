@@ -7,7 +7,28 @@ const cloudinary = require("./cloudinary");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const jwt = require("jsonwebtoken");
 
+const SECRET_KEY = "mysecretkey"; // 🔐 change later
+function verifyAdmin(req, res, next) {
+  const authHeader = req.headers["authorization"];
+
+if (!authHeader) {
+  return res.status(403).json({ message: "No token" });
+}
+
+// ✅ REMOVE "Bearer "
+const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid token" });
+  }
+}
+///create //
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -89,42 +110,46 @@ res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 /* LOGIN */
-app.post("/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
+  console.log("👉 Login API hit");
 
-const { email, password } = req.body;
+  const { email, password } = req.body;
 
-const sql = "SELECT * FROM custo WHERE email=?";
+  try {
+    const [users] = await db.query(
+      "SELECT * FROM custo WHERE email=?",
+      [email]
+    );
 
-db.query(sql, [email], (err, result) => {
+    console.log("👉 DB result:", users);
 
-if(err){
-console.log(err);
-return res.json({success:false});
-}
+    if (users.length === 0) {
+      return res.json({ success: false, message: "invalid_email" });
+    }
 
-if(result.length === 0){
-return res.json({success:false});
-}
+    const user = users[0];
 
-const user = result[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+    console.log("👉 Password match:", isMatch);
 
-bcrypt.compare(password, user.password, (err, isMatch) => {
+    if (!isMatch) {
+      return res.json({ success: false, message: "wrong_password" });
+    }
 
-if(err){
-console.log(err);
-return res.json({success:false});
-}
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: "user" },
+      SECRET_KEY,
+      { expiresIn: "1d" }
+    );
 
-if(isMatch){
-res.json({success:true});
-}else{
-res.json({success:false});
-}
+    console.log("✅ Login success");
 
-});
+    return res.json({ success: true, token });
 
-});
-
+  } catch (err) {
+    console.log("❌ LOGIN ERROR:", err);
+    return res.json({ success: false });
+  }
 });
 //forget pass//
 app.post("/forgot-password", (req, res) => {
@@ -225,96 +250,132 @@ res.json({success:true});
 
 });
 //ADMIN LOGIN//
-app.post("/admin-login",(req,res)=>{
+app.post("/admin-login", async (req, res) => {
+  console.log("👉 Admin Login API hit");
 
-const {email,password} = req.body;
+  const { email, password } = req.body;
 
-const sql = "SELECT * FROM users WHERE email=? AND password=?";
+  try {
+    const [result] = await db.query(
+      "SELECT * FROM adminuser WHERE email=?",
+      [email]
+    );
 
-db.query(sql,[email,password],(err,result)=>{
+    if (result.length === 0) {
+      return res.json({ success: false, message: "invalid_email" });
+    }
 
-if(err){
-console.log(err);
-return res.json({success:false});
-}
+    const user = result[0];
 
-if(result.length>0){
-res.json({success:true});
-}else{
-res.json({success:false});
-}
+    const match = await bcrypt.compare(password, user.password);
 
-});
+    if (!match) {
+      return res.json({ success: false, message: "wrong_password" });
+    }
 
-});
-/* SIGNUP */
-app.post("/signup",(req,res)=>{
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: "admin" },
+      SECRET_KEY,
+      { expiresIn: "1h" }
+    );
 
-const {name,email,password,mobile} = req.body;
+    console.log("✅ Admin login success");
 
-// ✅ VALIDATION
-if(!name || !email || !password || !mobile){
-  return res.json({success:false,message:"All fields required"});
-}
+    return res.json({
+      success: true,
+      token: token
+    });
 
-// ✅ EMAIL FORMAT
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-if(!emailRegex.test(email)){
-  return res.json({success:false,message:"invalid_email"});
-}
-
-// ✅ PASSWORD RULE
-if(password.length < 6){
-  return res.json({success:false,message:"weak_password"});
-}
-
-// ✅ MOBILE RULE
-if(!/^\d{10}$/.test(mobile)){
-  return res.json({success:false,message:"invalid_mobile"});
-}
-
-/* CHECK EMAIL */
-const checkSql = "SELECT * FROM custo WHERE email=?";
-
-db.query(checkSql,[email],(err,result)=>{
-
-  if(err){
-    console.log(err);
-    return res.json({success:false});
+  } catch (err) {
+    console.log("❌ ADMIN LOGIN ERROR:", err);
+    return res.json({ success: false });
   }
+});
+//adminsignup//
 
-  if(result.length > 0){
-    return res.json({success:false,message:"exists"});
-  }
+app.post("/admin-signup", async (req, res) => {
 
-  /* INSERT USER */
-  const insertSql =
-  "INSERT INTO custo (name,email,password,mobile) VALUES (?,?,?,?)";
+  const { name, email, password } = req.body;
 
-  // 🔐 HASH PASSWORD
-  bcrypt.hash(password, 10, (err, hashedPassword) => {
+  const checkSql = "SELECT * FROM adminuser WHERE email = ?";
 
-    if (err) {
-      console.log(err);
+  db.query(checkSql, [email], async (err, result) => {
+
+    if (err) return res.json({ success: false });
+
+    if (result.length > 0) {
       return res.json({ success: false });
     }
 
-    db.query(insertSql,[name,email,hashedPassword,mobile],(err)=>{
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-      if(err){
-        console.log(err);
-        return res.json({success:false});
-      }
+    const insertSql = "INSERT INTO adminuser (name, email, password) VALUES (?, ?, ?)";
 
-      res.json({success:true});
+    db.query(insertSql, [name, email, hashedPassword], (err) => {
+
+      if (err) return res.json({ success: false });
+
+      res.json({ success: true });
 
     });
 
   });
 
-}); // ✅ THIS WAS MISSING
+});
+/* SIGNUP */
+app.post("/api/signup", async (req, res) => {
+  console.log("👉 Signup API hit");
 
-}); // ✅ THIS ALSO CLOSES app.post
+  const { name, email, password, mobile } = req.body;
+
+  try {
+    // ✅ validation
+    if (!name || !email || !password || !mobile) {
+      return res.json({ success: false, message: "All fields required" });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.json({ success: false, message: "invalid_email" });
+    }
+
+    if (password.length < 6) {
+      return res.json({ success: false, message: "weak_password" });
+    }
+
+    if (!/^\d{10}$/.test(mobile)) {
+      return res.json({ success: false, message: "invalid_mobile" });
+    }
+
+    // ✅ check existing user
+    const [users] = await db.query(
+      "SELECT * FROM custo WHERE email=?",
+      [email]
+    );
+
+    if (users.length > 0) {
+      return res.json({ success: false, message: "exists" });
+    }
+
+    // ✅ hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // ✅ insert user
+    await db.query(
+      "INSERT INTO custo (name,email,password,mobile) VALUES (?,?,?,?)",
+      [name, email, hashedPassword, mobile]
+    );
+
+    console.log("✅ User inserted");
+
+    // ✅ VERY IMPORTANT (this was missing in your flow)
+    return res.json({ success: true });
+
+  } catch (err) {
+    console.log("❌ ERROR:", err);
+    return res.json({ success: false });
+  }
+});
 //api/shops//
 app.get("/api/shops", (req, res) => {
   db.query("SELECT * FROM shops", (err, result) => {
@@ -323,37 +384,34 @@ app.get("/api/shops", (req, res) => {
   });
 });
 /* PRODUCTS API */
-
-app.get("/api/products", (req, res) => {
-
-  db.query("SELECT * FROM products", (err, result) => {
-
-    if (err) {
-      res.status(500).json(err);
-    } else {
-      res.json(result);
-    }
-
-  });
-
+app.get("/api/products", async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT * FROM products");
+    res.json(rows);
+  } catch (err) {
+    console.log("❌ DB ERROR:", err);
+    res.status(500).json({ error: "Error loading products" });
+  }
 });
 //shop_id//
-app.get("/api/products/:shopId", (req, res) => {
+app.get("/api/products/:shopId", async (req, res) => {
   const shopId = req.params.shopId;
 
-  const sql = "SELECT * FROM products WHERE shop_id = ?";
+  try {
+    const [rows] = await db.query(
+      "SELECT * FROM products WHERE shop_id = ?",
+      [shopId]
+    );
 
-  db.query(sql, [shopId], (err, result) => {
-    if (err) {
-      console.log(err);
-      return res.json([]);
-    }
+    res.json(rows);
 
-    res.json(result);
-  });
+  } catch (err) {
+    console.log(err);
+    res.json([]);
+  }
 });
 //Delete products//
-app.delete("/delete-product/:id", (req, res) => {
+app.delete("/delete-product/:id",verifyAdmin, (req, res) => {
   const productId = req.params.id;
 
   if (!productId) {
@@ -377,7 +435,7 @@ app.delete("/delete-product/:id", (req, res) => {
 });
 //Edit products//
 // UPDATE PRODUCT
-app.put("/update-product/:id", (req,res)=>{
+app.put("/update-product/:id",verifyAdmin, (req,res)=>{
 
 const productId = req.params.id;
 
@@ -405,19 +463,19 @@ res.json({success:true});
 // ======================
 // GET ALL ORDERS (ADMIN)
 // ======================
-app.get("/api/orders", (req, res) => {
-const sql = `
-SELECT 
-  o.id, o.total, o.status, o.date,
-  oi.product_id, oi.quantity, oi.price,
-  p.name, p.brand, p.image_url
-FROM orders o
-LEFT JOIN order_items oi ON o.id = oi.order_id
-LEFT JOIN products p ON oi.product_id = p.id
-`;
-  db.query(sql, (err, result) => {
+app.get("/api/orders", verifyAdmin, async (req, res) => {
+  const sql = `
+  SELECT 
+    o.id, o.total, o.status, o.date,
+    oi.product_id, oi.quantity, oi.price,
+    p.name, p.brand, p.image_url
+  FROM orders o
+  LEFT JOIN order_items oi ON o.id = oi.order_id
+  LEFT JOIN products p ON oi.product_id = p.id
+  `;
 
-    if (err) return res.status(500).json(err);
+  try {
+    const [result] = await db.query(sql);
 
     const orders = {};
 
@@ -433,19 +491,23 @@ LEFT JOIN products p ON oi.product_id = p.id
       }
 
       if (row.product_id) {
- orders[row.id].items.push({
-  product_id: row.product_id,
-  quantity: row.quantity,
-  price: row.price,
-  name: row.name,
-  brand: row.brand,
-  image: row.image_url // ✅ IMPORTANT
-  });
-}
+        orders[row.id].items.push({
+          product_id: row.product_id,
+          quantity: row.quantity,
+          price: row.price,
+          name: row.name,
+          brand: row.brand,
+          image: row.image_url
+        });
+      }
     });
 
     res.json(Object.values(orders));
-  });
+
+  } catch (err) {
+    console.log("❌ DB ERROR:", err);
+    res.status(500).json({ error: "Server error loading orders" });
+  }
 });
 //api create order//
 app.post("/api/create-order", (req, res) => {
@@ -556,6 +618,54 @@ app.put("/api/orders/:id/status", (req, res) => {
 
     res.json({ message: "Status updated" });
   });
+});
+///sear api//
+app.get("/api/search", (req, res) => {
+
+  const { q, category, minPrice, maxPrice, rating, sort } = req.query;
+
+  let sql = "SELECT * FROM products WHERE 1=1";
+  let values = [];
+
+  // 🔍 Search
+  if (q) {
+    sql += " AND (name LIKE ? OR brand LIKE ?)";
+    values.push(`%${q}%`, `%${q}%`);
+  }
+
+  // 📂 Category
+  if (category) {
+    sql += " AND category = ?";
+    values.push(category);
+  }
+
+  // 💰 Price
+  if (minPrice && maxPrice) {
+    sql += " AND price BETWEEN ? AND ?";
+    values.push(minPrice, maxPrice);
+  }
+
+  // ⭐ Rating
+  if (rating) {
+    sql += " AND rating >= ?";
+    values.push(rating);
+  }
+
+  // 🔃 Sorting
+  if (sort === "price-low") sql += " ORDER BY price ASC";
+  if (sort === "price-high") sql += " ORDER BY price DESC";
+  if (sort === "rating") sql += " ORDER BY rating DESC";
+  if (sort === "newest") sql += " ORDER BY id DESC";
+
+  db.query(sql, values, (err, result) => {
+    if (err) {
+      console.log(err);
+      return res.json([]);
+    }
+
+    res.json(result);
+  });
+
 });
 const PORT = process.env.PORT || 3000;
 

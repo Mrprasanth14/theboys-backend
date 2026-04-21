@@ -1,7 +1,5 @@
 require("dotenv").config();
-const mysql = require("mysql2");
-
-// ✅ USE POOL (IMPORTANT FIX)
+const mysql = require("mysql2/promise");
 const db = mysql.createPool({
   host: "switchback.proxy.rlwy.net",
   user: "root",
@@ -14,14 +12,15 @@ const db = mysql.createPool({
   queueLimit: 0
 });
 
-// optional debug
-db.getConnection((err, connection) => {
-  if (err) {
-    console.log("❌ DB ERROR:", err);
-  } else {
+// ✅ Test connection
+(async () => {
+  try {
+    const conn = await db.getConnection();
     console.log("✅ DB Connected (Pool - Railway)");
-    connection.release(); // VERY IMPORTANT
+    conn.release();
+  } catch (err) {
+    console.log("❌ DB ERROR:", err);
   }
-});
+})();
 
 module.exports = db;
