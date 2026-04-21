@@ -10,23 +10,27 @@ const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 
 const SECRET_KEY = "mysecretkey"; // 🔐 change later
-function verifyAdmin(req, res, next) {
+function verifyToken(req, res, next) {
   const authHeader = req.headers["authorization"];
 
-if (!authHeader) {
-  return res.status(403).json({ message: "No token" });
-}
-
-// ✅ REMOVE "Bearer "
-const token = authHeader.split(" ")[1];
-
-  try {
-    const decoded = jwt.verify(token, SECRET_KEY);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ message: "Invalid token" });
+  if (!authHeader) {
+    return res.status(403).json({ message: "No token" });
   }
+
+  const token = authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(403).json({ message: "Invalid token" });
+  }
+
+  jwt.verify(token, "mysecretkey", (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: "Token invalid" });
+    }
+
+    req.user = user;
+    next();
+  });
 }
 ///create //
 const transporter = nodemailer.createTransport({
@@ -463,7 +467,7 @@ res.json({success:true});
 // ======================
 // GET ALL ORDERS (ADMIN)
 // ======================
-app.get("/api/orders", verifyAdmin, async (req, res) => {
+app.get("/api/orders",verifyToken, async (req, res) => {
   const sql = `
   SELECT 
     o.id, o.total, o.status, o.date,
@@ -507,6 +511,16 @@ app.get("/api/orders", verifyAdmin, async (req, res) => {
   } catch (err) {
     console.log("❌ DB ERROR:", err);
     res.status(500).json({ error: "Server error loading orders" });
+  }
+});
+//api shops//
+app.get("/api/shops", async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT * FROM shops");
+    res.json(rows);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "DB error" });
   }
 });
 //api create order//
