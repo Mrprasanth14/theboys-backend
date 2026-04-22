@@ -421,7 +421,7 @@ app.get("/api/products/:shopId", async (req, res) => {
   }
 });
 //Delete products//
-app.delete("/delete-product/:id",verifyAdmin, (req, res) => {
+app.delete("/delete-product/:id",verifyToken, (req, res) => {
   const productId = req.params.id;
 
   if (!productId) {
@@ -445,7 +445,7 @@ app.delete("/delete-product/:id",verifyAdmin, (req, res) => {
 });
 //Edit products//
 // UPDATE PRODUCT
-app.put("/update-product/:id",verifyAdmin, (req,res)=>{
+app.put("/update-product/:id",verifyToken, (req,res)=>{
 
 const productId = req.params.id;
 
