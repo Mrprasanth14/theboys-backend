@@ -298,10 +298,11 @@ app.post("/admin-login", async (req, res) => {
 //adminsignup//
 
 app.post("/admin-signup", async (req, res) => {
+  console.log("👉 Signup API HIT");
+
   const { name, email, password } = req.body;
 
   try {
-    // 🔍 check existing user
     const [existing] = await db.query(
       "SELECT * FROM adminuser WHERE email=?",
       [email]
@@ -311,22 +312,24 @@ app.post("/admin-signup", async (req, res) => {
       return res.json({ success: false, message: "Email already exists" });
     }
 
-    // 🔐 hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ insert into DB
     const [result] = await db.query(
       "INSERT INTO adminuser (name, email, password) VALUES (?, ?, ?)",
       [name, email, hashedPassword]
     );
 
-    console.log("✅ Insert result:", result);
+    console.log("✅ Inserted:", result);
 
     return res.json({ success: true });
 
   } catch (err) {
-    console.log("❌ SIGNUP ERROR:", err); // 🔥 IMPORTANT LOG
-    return res.json({ success: false, message: "DB error" });
+    console.log("❌ SIGNUP ERROR:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
   }
 });
 /* SIGNUP */
