@@ -473,7 +473,7 @@ res.json({success:true});
 // ======================
 // GET ALL ORDERS (ADMIN)
 // ======================
-app.get("/api/orders",verifyToken, async (req, res) => {
+app.get("/api/orders", async (req, res) => {
   const sql = `
   SELECT 
     o.id, o.total, o.status, o.date,
@@ -525,50 +525,43 @@ app.get("/api/shops", async (req, res) => {
     const [rows] = await db.query("SELECT * FROM shops");
     res.json(rows);
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "DB error" });
+    console.log("❌ SHOPS ERROR:", err.message); // 👈 IMPORTANT
+    res.status(500).json({ error: err.message });
   }
 });
 //api create order//
-app.post("/api/create-order", (req, res) => {
+app.post("/api/create-order", async (req, res) => {
   const { items, total } = req.body;
 
-  console.log("👉 Incoming items:", items);
+  try {
+    // ✅ Insert order
+    const [orderResult] = await db.query(
+      "INSERT INTO orders (total, status) VALUES (?, ?)",
+      [total, "Pending"]
+    );
 
-  db.query(
-    "INSERT INTO orders (total, status) VALUES (?, ?)",
-    [total, "Pending"],
-    (err, orderResult) => {
-      if (err) {
-        console.log("Order error:", err);
-        return res.status(500).json({ success: false });
-      }
+    const orderId = orderResult.insertId;
 
-      const orderId = orderResult.insertId;
+    // ✅ Prepare items
+    const values = items.map(item => [
+      orderId,
+      item.product_id,
+      item.quantity,
+      item.price
+    ]);
 
-      const values = items.map(item => [
-        orderId,
-        item.product_id,
-        item.quantity,
-        item.price
-      ]);
+    // ✅ Insert order items
+    await db.query(
+      "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ?",
+      [values]
+    );
 
-      console.log("👉 Insert values:", values);
+    res.json({ success: true });
 
-      db.query(
-        "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ?",
-        [values],
-        (err2) => {
-          if (err2) {
-            console.log("❌ Item insert error:", err2);
-            return res.status(500).json({ success: false });
-          }
-
-          res.json({ success: true });
-        }
-      );
-    }
-  );
+  } catch (err) {
+    console.log("❌ CREATE ORDER ERROR:", err);
+    res.status(500).json({ success: false });
+  }
 });
 // api-card-add//
 app.post("/api/cart/add", (req, res) => {
