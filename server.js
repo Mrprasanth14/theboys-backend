@@ -298,33 +298,36 @@ app.post("/admin-login", async (req, res) => {
 //adminsignup//
 
 app.post("/admin-signup", async (req, res) => {
-
   const { name, email, password } = req.body;
 
-  const checkSql = "SELECT * FROM adminuser WHERE email = ?";
+  try {
+    // 🔍 check existing user
+    const [existing] = await db.query(
+      "SELECT * FROM adminuser WHERE email=?",
+      [email]
+    );
 
-  db.query(checkSql, [email], async (err, result) => {
-
-    if (err) return res.json({ success: false });
-
-    if (result.length > 0) {
-      return res.json({ success: false });
+    if (existing.length > 0) {
+      return res.json({ success: false, message: "Email already exists" });
     }
 
+    // 🔐 hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const insertSql = "INSERT INTO adminuser (name, email, password) VALUES (?, ?, ?)";
+    // ✅ insert into DB
+    const [result] = await db.query(
+      "INSERT INTO adminuser (name, email, password) VALUES (?, ?, ?)",
+      [name, email, hashedPassword]
+    );
 
-    db.query(insertSql, [name, email, hashedPassword], (err) => {
+    console.log("✅ Insert result:", result);
 
-      if (err) return res.json({ success: false });
+    return res.json({ success: true });
 
-      res.json({ success: true });
-
-    });
-
-  });
-
+  } catch (err) {
+    console.log("❌ SIGNUP ERROR:", err); // 🔥 IMPORTANT LOG
+    return res.json({ success: false, message: "DB error" });
+  }
 });
 /* SIGNUP */
 app.post("/api/signup", async (req, res) => {
