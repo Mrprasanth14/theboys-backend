@@ -56,52 +56,36 @@ const upload = multer({ storage: storage });
 app.post("/add-product", async (req, res) => {
   try {
     const {
-  name,
-  brand,
-  price,
-  original_price,
-  category,
-  description,
-  collection,
-  sizes,
-  colors,
-  image_url,
-  shop_id 
-} = req.body;
-
-    if (!image_url) {
-      return res.json({ success: false, message: "Image URL missing" });
-    }
+      name, brand, price, original_price,
+      category, description, collection,
+      sizes, colors, image_url, shop_id
+    } = req.body;
 
     const sql = `
       INSERT INTO products
-      (name, brand, price, original_price, category, description, image_url, collection, sizes, colors, rating,shop_id)
+      (name, brand, price, original_price, category, description, image_url, collection, sizes, colors, rating, shop_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-   db.query(sql, [
-  name,
-  brand,
-  price,
-  original_price || price,
-  category,
-  description,
-  image_url,
-  collection,
-  sizes,
-  colors,
-  4.5,
-  shop_id
-], (err) => {
-      if (err) {
-        console.log(err);
-        return res.json({ success: false, message: err.message });
-      }
-      res.json({ success: true });
-    });
+    await db.query(sql, [
+      name,
+      brand,
+      price,
+      original_price || price,
+      category,
+      description,
+      image_url,
+      collection,
+      sizes,
+      colors,
+      4.5,
+      shop_id
+    ]);
+
+    res.json({ success: true });
 
   } catch (err) {
-    console.log(err);
+    console.log("❌ ADD PRODUCT ERROR:", err);
     res.json({ success: false });
   }
 });
@@ -386,13 +370,6 @@ app.post("/api/signup", async (req, res) => {
     return res.json({ success: false });
   }
 });
-//api/shops//
-app.get("/api/shops", (req, res) => {
-  db.query("SELECT * FROM shops", (err, result) => {
-    if (err) return res.status(500).json(err);
-    res.json(result);
-  });
-});
 /* PRODUCTS API */
 app.get("/api/products", async (req, res) => {
   try {
@@ -421,53 +398,43 @@ app.get("/api/products/:shopId", async (req, res) => {
   }
 });
 //Delete products//
-app.delete("/delete-product/:id",verifyToken, (req, res) => {
-  const productId = req.params.id;
+app.delete("/delete-product/:id", verifyToken, async (req, res) => {
+  try {
+    const productId = req.params.id;
 
-  if (!productId) {
-    return res.status(400).json({ success: false, message: "Product ID required" });
-  }
-
-  const sql = "DELETE FROM products WHERE id = ?";
-
-  db.query(sql, [productId], (err, result) => {
-    if (err) {
-      console.error("Delete error:", err);
-      return res.status(500).json({ success: false, message: "Database error" });
-    }
+    const [result] = await db.query(
+      "DELETE FROM products WHERE id = ?",
+      [productId]
+    );
 
     if (result.affectedRows === 0) {
-      return res.json({ success: false, message: "Product not found" });
+      return res.json({ success: false });
     }
 
-    res.json({ success: true, message: "Product deleted successfully" });
-  });
+    res.json({ success: true });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ success: false });
+  }
 });
-//Edit products//
 // UPDATE PRODUCT
-app.put("/update-product/:id",verifyToken, (req,res)=>{
+app.put("/update-product/:id", verifyToken, async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const { name, brand, price, category, description } = req.body;
 
-const productId = req.params.id;
+    await db.query(
+      `UPDATE products SET name=?, brand=?, price=?, category=?, description=? WHERE id=?`,
+      [name, brand, price, category, description, productId]
+    );
 
-const {name,brand,price,category,description} = req.body;
+    res.json({ success: true });
 
-const sql = `
-UPDATE products 
-SET name=?,brand=?,price=?,category=?,description=? 
-WHERE id=?
-`;
-
-db.query(sql,[name,brand,price,category,description,productId],(err,result)=>{
-
-if(err){
-console.log(err);
-return res.json({success:false});
-}
-
-res.json({success:true});
-
-});
-
+  } catch (err) {
+    console.log(err);
+    res.json({ success: false });
+  }
 });
 //orders//
 // ======================
