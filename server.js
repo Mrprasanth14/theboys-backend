@@ -42,7 +42,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const app = express(); 
-const frontendPath = path.join(__dirname, "../frontend");
+// const frontendPath = path.join(__dirname, "../frontend");
 app.use(cors()); // allow all origins
 
 app.use(express.json());
@@ -106,12 +106,12 @@ app.post("/add-product", async (req, res) => {
   }
 });
 /* SERVE FRONTEND */
-app.use(express.static(frontendPath));
+// app.use(express.static(frontendPath));
 
-/* HOME PAGE */
-app.get("/", (req, res) => {
-res.sendFile(path.join(frontendPath, "index.html"));
-});
+// /* HOME PAGE */
+// app.get("/", (req, res) => {
+// res.sendFile(path.join(frontendPath, "index.html"));
+// });
 
 /* LOGIN */
 app.post("/api/login", async (req, res) => {
