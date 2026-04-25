@@ -42,7 +42,7 @@ const transporter = nodemailer.createTransport({
 const app = express(); 
 // const frontendPath = path.join(__dirname, "../frontend");
 app.use(cors({
-  origin: "https://your-frontend.vercel.app",
+  origin: "https://theboys-frontend.vercel.app",
   credentials: true
 }));
 
