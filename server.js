@@ -9,9 +9,9 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
-
-const SECRET_KEY = "mysecretkey"; // 🔐 change 
+const SECRET_KEY = process.env.SECRET_KEY; // 🔐 change 
 
 function verifyToken(req, res, next) {
   const token = req.cookies.token;
@@ -28,6 +28,16 @@ function verifyToken(req, res, next) {
     req.user = decoded;
     next();
   });
+}
+function verifyAdmin(req, res, next) {
+
+  if (req.user.role !== "admin") {
+    return res.status(403).json({
+      message: "Admin only"
+    });
+  }
+
+  next();
 }
 
 ///create //
@@ -55,7 +65,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 /* ADD PRODUCT API */
-app.post("/add-product", async (req, res) => {
+app.post("/add-product",verifyToken,verifyAdmin, async (req, res) => {
   try {
     const {
       name, brand, price, original_price,
@@ -91,13 +101,6 @@ app.post("/add-product", async (req, res) => {
     res.json({ success: false });
   }
 });
-/* SERVE FRONTEND */
-// app.use(express.static(frontendPath));
-
-// /* HOME PAGE */
-// app.get("/", (req, res) => {
-// res.sendFile(path.join(frontendPath, "index.html"));
-// });
 
 /* LOGIN */
 app.post("/api/login", async (req, res) => {
@@ -276,7 +279,12 @@ app.post("/admin-login", async (req, res) => {
     );
 
     console.log("✅ Admin login success");
-
+  res.cookie("token", token, {
+  httpOnly: true,
+  secure: true,
+  sameSite: "None",
+  maxAge: 24 * 60 * 60 * 1000
+});
     return res.json({
       success: true,
       token: token
@@ -406,7 +414,7 @@ app.get("/api/products/:shopId", async (req, res) => {
   }
 });
 //Delete products//
-app.delete("/delete-product/:id", verifyToken, async (req, res) => {
+app.delete("/delete-product/:id", verifyToken, verifyAdmin,async (req, res) => {
   try {
     const productId = req.params.id;
 
@@ -427,7 +435,7 @@ app.delete("/delete-product/:id", verifyToken, async (req, res) => {
   }
 });
 // UPDATE PRODUCT
-app.put("/update-product/:id", verifyToken, async (req, res) => {
+app.put("/update-product/:id", verifyToken,verifyAdmin, async (req, res) => {
   try {
     const productId = req.params.id;
     const { name, brand, price, category, description } = req.body;
@@ -448,7 +456,7 @@ app.put("/update-product/:id", verifyToken, async (req, res) => {
 // ======================
 // GET ALL ORDERS (ADMIN)
 // ======================
-app.get("/api/orders", async (req, res) => {
+app.get("/api/orders",verifyToken,verifyAdmin, async (req, res) => {
   const sql = `
   SELECT 
     o.id, o.total, o.status, o.date,
@@ -592,7 +600,7 @@ app.get("/api/orders/:id", (req, res) => {
   });
 });
 //apiorderw/id/stauts//
-app.put("/api/orders/:id/status", (req, res) => {
+app.put("/api/orders/:id/status",verifyToken,verifyAdmin, (req, res) => {
   const orderId = req.params.id;
   const { status } = req.body;
 
