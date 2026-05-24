@@ -150,6 +150,16 @@ return res.json({ success: true });
     return res.json({ success: false });
   }
 });
+//logout//
+app.post("/api/logout", (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "None"
+  });
+
+  res.json({ success: true });
+});
 //forget pass//
 app.post("/forgot-password", (req, res) => {
 
