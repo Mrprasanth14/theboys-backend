@@ -513,7 +513,7 @@ app.get("/api/shops", async (req, res) => {
   }
 });
 //api create order//
-app.post("/api/create-order", async (req, res) => {
+app.post("/api/create-order",verifyToken, async (req, res) => {
   const { items, total } = req.body;
 
   try {
@@ -547,7 +547,7 @@ app.post("/api/create-order", async (req, res) => {
   }
 });
 // api-card-add//
-app.post("/api/cart/add", (req, res) => {
+app.post("/api/cart/add",verifyToken, (req, res) => {
   const { productId, quantity } = req.body;
 
   db.query(
