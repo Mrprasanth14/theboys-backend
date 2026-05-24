@@ -560,7 +560,7 @@ app.post("/api/cart/add",verifyToken, (req, res) => {
   );
 });
 //invoice//
-app.get("/api/orders/:id/invoice", (req, res) => {
+app.get("/api/orders/:id/invoice",verifyToken, (req, res) => {
   const orderId = req.params.id;
 
   db.query("SELECT * FROM orders WHERE id = ?", [orderId], (err, order) => {
@@ -576,7 +576,7 @@ app.get("/api/orders/:id/invoice", (req, res) => {
   });
 });
 //api/orders//
-app.get("/api/orders/:id", (req, res) => {
+app.get("/api/orders/:id",verifyToken, (req, res) => {
   const id = req.params.id;
 
   db.query("SELECT * FROM orders WHERE id = ?", [id], (err, order) => {
